@@ -1,0 +1,7 @@
+/* Cohort expiry — manage page. */
+.path-local-accessexpiry .ce-days input {
+    width: 6rem;
+}
+.path-local-accessexpiry .ce-date input {
+    width: 11rem;
+}

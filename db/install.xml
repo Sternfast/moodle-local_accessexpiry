@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/accessexpiry/db" VERSION="20260907" COMMENT="Access-expiry / enrolment-duration rules, per-user extensions, audit log and notification dedupe."
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_accessexpiry_rule" COMMENT="One access-duration rule per scope + enrolment method. More specific scopes override broader ones.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="scopelevel" TYPE="int" LENGTH="4" NOTNULL="true" SEQUENCE="false" COMMENT="10=site, 20=category, 30=course, 40=role, 50=enrolmethod, 60=cohort"/>
+        <FIELD NAME="scopeid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 for site/enrolmethod; else categoryid/courseid/roleid/cohortid"/>
+        <FIELD NAME="enrolmethod" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="enrol plugin this rule targets (e.g. manual, self), or empty for any"/>
+        <FIELD NAME="durationtype" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0=never, 1=relative days, 2=absolute date"/>
+        <FIELD NAME="durationdays" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="days of access when durationtype=1"/>
+        <FIELD NAME="enddate" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="unix timestamp when durationtype=2"/>
+        <FIELD NAME="onexpiry" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="direct enrolment action: 0=unenrol, 1=keep, 2=suspend, 3=suspend+remove roles"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="scope" UNIQUE="true" FIELDS="scopelevel, scopeid, enrolmethod"/>
+        <INDEX NAME="levelenabled" UNIQUE="false" FIELDS="scopelevel, enabled"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_accessexpiry_extension" COMMENT="Per-user access extensions/overrides (e.g. after purchase). Applied after rule resolution and always win.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="targettype" TYPE="int" LENGTH="4" NOTNULL="true" SEQUENCE="false" COMMENT="30=course, 60=cohort"/>
+        <FIELD NAME="targetid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="grantmode" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0=set end date, 1=add days, 2=unlimited"/>
+        <FIELD NAME="enddate" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="days" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="reason" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="grantedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="revoked" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="revokedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timerevoked" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="useridfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="usertarget" UNIQUE="false" FIELDS="userid, targettype, targetid, revoked"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_accessexpiry_log" COMMENT="Append-only audit trail of every real access change, with before/after values for precise revert.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="runid" TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="groups one pass of changes"/>
+        <FIELD NAME="action" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="SETEND|SUSPEND|SUSPENDNOROLES|UNENROL|COHORTREMOVE|EXTEND|REVOKE|GOLIVE|REVERT"/>
+        <FIELD NAME="ueid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="user_enrolments.id for direct enrolment changes"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="affected user"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="enrolid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="enrol instance id"/>
+        <FIELD NAME="enroltype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="enrol plugin name"/>
+        <FIELD NAME="cohortid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="oldtimeend" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="oldstatus" TYPE="int" LENGTH="4" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="newtimeend" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="newstatus" TYPE="int" LENGTH="4" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="dryrun" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="actorid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 = cron / system"/>
+        <FIELD NAME="reverted" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timereverted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="detail" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="runid" UNIQUE="false" FIELDS="runid"/>
+        <INDEX NAME="useridtime" UNIQUE="false" FIELDS="userid, timecreated"/>
+        <INDEX NAME="revertedtime" UNIQUE="false" FIELDS="reverted, timecreated"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_accessexpiry_notified" COMMENT="Dedupe: which users have already been notified about a given effective end date.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="targettype" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="targetid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="notiftype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="e.g. expiring, expired"/>
+        <FIELD NAME="effectiveend" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="the end date we notified about; a change re-notifies"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="useridfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="dedupe" UNIQUE="true" FIELDS="userid, targettype, targetid, notiftype, effectiveend"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
