@@ -309,29 +309,7 @@ echo html_writer::div(
     ]), 'mt-2');
 echo html_writer::end_tag('form');
 
-// Progressive enhancement: show only the relevant value input per row, and wire "reset to default".
-$PAGE->requires->js_amd_inline("
-require(['jquery'], function($) {
-    function toggle(el) {
-        var v = $(el).val();
-        var row = $(el).closest('tr');
-        row.find('.ce-days').css('display', v === 'relative' ? '' : 'none');
-        row.find('.ce-date').css('display', v === 'absolute' ? '' : 'none');
-    }
-    $('.ce-policy').each(function() { toggle(this); });
-    $('.ce-policy').on('change', function() { toggle(this); });
-    $('.ce-reset').on('click', function(e) {
-        e.preventDefault();
-        var id = $(this).data('cohortid');
-        $('.ce-policy[data-cohortid=\"' + id + '\"]').val('usedefault').trigger('change');
-    });
-    $('#ae-filter').on('input', function() {
-        var q = $(this).val().toLowerCase();
-        $('#ae-cohort-grid tbody tr').each(function() {
-            $(this).toggle($(this).text().toLowerCase().indexOf(q) !== -1);
-        });
-    });
-});
-");
+// Progressive enhancement: show only the relevant value input per row, wire "reset to default", and filter.
+$PAGE->requires->js_call_amd('local_accessexpiry/manage', 'init');
 
 echo $OUTPUT->footer();

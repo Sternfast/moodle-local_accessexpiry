@@ -51,5 +51,10 @@ function xmldb_local_accessexpiry_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026090702, 'local', 'accessexpiry');
     }
 
+    // v1.0.1 (2026092300): install.xml no longer declares an empty-string DEFAULT on
+    // its NOT NULL char columns. No schema upgrade is needed for existing sites —
+    // Moodle already stored those columns with a NULL default at install time (it
+    // rewrites '' defaults automatically), so the change only affects fresh installs.
+
     return true;
 }
